@@ -27,8 +27,9 @@ let rooms: {[key: string]: Room} = {};
 
 primus.on('connection', function (spark: Primus.ISpark) {
 
+  // NEXT: more room info to display
   // give room list
-  spark.write(primus.rooms());
+  spark.write({a: 'rooms', rooms: Object.keys(rooms)});
 
   spark.on('data', function (data) {
     data = data || {};
@@ -77,19 +78,24 @@ primus.on('connection', function (spark: Primus.ISpark) {
     // vote -- update answers
 
     // ADMIN commands
+    if (!user.isAdmin()) {
+      return;
+    }
+    // createSession --> rooms (nb questions)
     // addQuestion
     // setQuestion -- lookup question (start/stop times)
     // showAnswers --> send filtered answers
     // showResults --> send results ranking and answers for all questions?
-    // createSession --> rooms (nb questions)
+
 
     // SEND
-    // player_list
     // question (with answers and filtered)
-    // rooms
     // vote (to admin)
     // answers
     // results
+
+    // voters
+    // rooms
 
   });
 });
