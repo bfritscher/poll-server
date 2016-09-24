@@ -14,14 +14,14 @@ export class User {
     }
 }
 
-export class Answer {
+interface IAnswer {
     content: string;
     correct: boolean|number;
 }
 
 export class Question {
     content: string;
-    answers: Answer[] = [];
+    answers: IAnswer[] = [];
     votes: {[key: string]: number[]} = {};
     start: Date;
     stop: Date;
@@ -59,6 +59,7 @@ export class Room {
     course: string;
     created: Date;
     questions: Question[];
+    currentQuestionIndex: number;
 
     constructor(name: string) {
         this.name = name;

@@ -2,7 +2,7 @@
 import * as http from 'http';
 import * as fs from 'fs';
 import * as Primus from 'primus';
-import { User, Room } from './models';
+import { User, Room, Question } from './models';
 let PrimusRooms = require('primus-rooms');
 
 function handler (req, res) {
@@ -93,10 +93,27 @@ primus.on('connection', function (spark: Primus.ISpark) {
       rooms[data.roomName] = room;
     }
 
-    // addQuestion
+    if (action === 'add_question') {
+      let room = rooms[data.roomName];
+      let question = new Question();
+      // object to instance?
+
+      room.questions.push(question);
+      // send new questions to admins (optional multiadmin)
+    }
+
     // setQuestion -- lookup question (start/stop times)
-    // reopen a question?
-    // showAnswers --> send filtered answers
+    /*
+      // stop current question stop if question started and not stopped
+      // setCurrentIndex
+      // start questionTime if null and send question else send question with answer
+    */
+    /*
+      // reset question
+      // remove votes
+      // set dates stop and start to null
+      // setQuestion
+    */
 
     if (action === 'show_results') {
       let room = rooms[data.roomName];
@@ -110,18 +127,30 @@ primus.on('connection', function (spark: Primus.ISpark) {
       });
     }
 
-
-
     // SEND
-    
+
     // question (with answers and filtered)
     // vote (to admin)
-    // answers
+    // vote_count
 
     // results
     // voters
     // rooms
     // close
+
+    // PERSISTENCE ? ids? check turning point
+    // save votes and modify votes
+    // save new questions
+    // save rooms/sessions
+
+    // NEXT
+    // userpics from api?
+    // multi auth? not only shib
+    // annoymous auth?
+    // admin by rooms?
+    // add admins
+    // load sessions?
+    // store questions sets to be instantiated as room/sessions
 
   });
 });
