@@ -144,6 +144,9 @@ primus.on('connection', function (spark: Primus.ISpark) {
     // save rooms/sessions
 
     // NEXT
+    
+    // question with no answers to display only content?
+
     // userpics from api?
     // multi auth? not only shib
     // annoymous auth?
