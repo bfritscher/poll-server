@@ -32,6 +32,7 @@ primus.on('connection', function (spark: Primus.ISpark) {
   spark.write({a: 'rooms', rooms: Object.keys(rooms)});
 
   spark.on('data', function (data) {
+    // NEXT cleanup room lookup, handle room not found
     data = data || {};
     let action: string = String(data.a);
     let user = User.fromHeaders(spark.headers);
@@ -81,21 +82,46 @@ primus.on('connection', function (spark: Primus.ISpark) {
     if (!user.isAdmin()) {
       return;
     }
-    // createSession --> rooms (nb questions)
+
+    if (action === 'create_room') {
+      if (rooms.hasOwnProperty(data.roomName)) {
+        return;
+      }
+      let room = new Room(data.roomName);
+      room.admins.push(user);
+      room.course = data.course;
+      rooms[data.roomName] = room;
+    }
+
     // addQuestion
     // setQuestion -- lookup question (start/stop times)
+    // reopen a question?
     // showAnswers --> send filtered answers
-    // showResults --> send results ranking and answers for all questions?
+
+    if (action === 'show_results') {
+      let room = rooms[data.roomName];
+      primus.room(data.roomName).write({a: 'results', results: room.results()});
+    }
+
+    if (action === 'close_room') {
+      delete rooms[data.roomName];
+      primus.room(data.roomName).write({a: 'close'}, () => {
+        primus.room(data.roomName).empty();
+      });
+    }
+
 
 
     // SEND
+    
     // question (with answers and filtered)
     // vote (to admin)
     // answers
-    // results
 
+    // results
     // voters
     // rooms
+    // close
 
   });
 });
