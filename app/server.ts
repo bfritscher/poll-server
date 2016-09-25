@@ -25,7 +25,7 @@ function handler (req, res) {
 }
 
 let server = http.createServer(handler);
-primus = new Primus(server, { transformer: 'sockjs' });
+primus = new Primus(server, { transformer: 'socksjs' });
 
 // add rooms extension to Primus
 primus.plugin('rooms', PrimusRooms);
