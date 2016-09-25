@@ -6,12 +6,14 @@
   "devDependencies": {
     "@types/node": "^6.0.41",
     "grunt": "^1.0.1",
+    "grunt-cli": "^1.2.0",
     "grunt-concurrent": "^2.0.0",
     "grunt-contrib-watch": "^1.0.0",
     "grunt-newer": "^1.1.1",
     "grunt-nodemon": "^0.4.0",
     "grunt-ts": "^6.0.0-beta.3",
     "grunt-tslint": "^3.2.1",
+    "supervisor": "^0.11.0",
     "tslint": "^3.7.3",
     "typescript": "^2.0.0"
   },

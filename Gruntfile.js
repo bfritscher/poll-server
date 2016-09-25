@@ -50,6 +50,7 @@ module.exports = function (grunt) {
                 src: ["**/*.ts", "!node_modules/**/*.ts"], // Avoid compiling TypeScript files in node_modules
                 outDir: 'dist',
                 options: {
+                    target: 'ES6',
                     module: 'commonjs', // To compile TypeScript using external modules like NodeJS
                     fast: 'never', // You'll need to recompile all the files each time for NodeJS
                     compiler: './node_modules/typescript/bin/tsc',

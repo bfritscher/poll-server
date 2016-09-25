@@ -2,14 +2,15 @@ let admins = ['boris'];
 
 export class User {
     email: string;
-    isAdmin(): Boolean {
-        return admins.indexOf(this.email) > -1;
-    }
+    isAdmin: Boolean;
 
     static fromHeaders(headers: any[]): User {
         let user = new User();
         // TODO get user from headers
+        console.log(headers['mail']);
         user.email = 'boris';
+        user.isAdmin = admins.indexOf(user.email) > -1;
+        user.isAdmin = headers['user-agent'].indexOf('Chrome') > 0;
         return user;
     }
 }
@@ -25,6 +26,15 @@ export class Question {
     votes: {[key: string]: number[]} = {};
     start: Date;
     stop: Date;
+    correctIndexes: number[];
+    isMultiple: boolean;
+
+    constructor(data: {content: string, answers: IAnswer[]}) {
+        this.content = data.content;
+        this.answers = data.answers || [];
+        this.correctIndexes = this.computeCorrectIndexes();
+        this.isMultiple = this.correctIndexes.length > 1;
+    }
 
     answer(user: User, vote: number[]): void {
         // NEXT get vote timings?
@@ -32,7 +42,7 @@ export class Question {
     }
 
     votesByAnswers(): number[] {
-        let votesTotal = [].fill(0, 0, this.answers.length);
+        let votesTotal = Array(this.answers.length).fill(0);
         Object.keys(this.votes).forEach((key) => {
             this.votes[key].forEach((index) => {
                 votesTotal[index]++;
@@ -41,7 +51,7 @@ export class Question {
         return votesTotal;
     }
 
-    correctIndexes(): number[] {
+    computeCorrectIndexes(): number[] {
         return this.answers.reduce((indexes, answer, index) => {
             if (answer.correct) {
                 indexes.push(index);
@@ -58,7 +68,8 @@ export class Room {
     name: string;
     course: string;
     created: Date;
-    questions: Question[];
+    questions: Question[] = [];
+    state: string = 'lobby';
     currentQuestionIndex: number;
 
     constructor(name: string) {
@@ -79,13 +90,35 @@ export class Room {
         }
     }
 
+    getFilteredRoom(): any {
+        return {
+            name: this.name,
+            course: this.course,
+            created: this.created,
+            state: this.state,
+            questions: this.questions.map((question) => {
+                return {
+                    content: question.content,
+                    start: question.start,
+                    stop: question.stop,
+                    isMultiple: question.isMultiple,
+                    answers: question.answers.map((answer) => {
+                        return {
+                            content: answer.content
+                        };
+                    })
+                };
+            }),
+            currentQuestionIndex: this.currentQuestionIndex
+        };
+    }
+
     results(): any[] {
         let results: {[key: string]: number} = {};
         this.questions.forEach((question) => {
-            let correctIndexes = question.correctIndexes();
             Object.keys(question.votes).forEach((userKey) => {
                 let score = question.votes[userKey].reduce((score, index) => {
-                    if (correctIndexes.indexOf(index) > -1) {
+                    if (question.correctIndexes.indexOf(index) > -1) {
                         score++;
                     }
                     return score;

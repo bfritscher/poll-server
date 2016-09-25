@@ -4,8 +4,14 @@ import * as fs from 'fs';
 import * as Primus from 'primus';
 import { User, Room, Question } from './models';
 let PrimusRooms = require('primus-rooms');
+let primus;
 
 function handler (req, res) {
+  if (req.url === '/primus/primus.js') {
+    return res.send(primus.library());
+
+  }
+
   fs.readFile(__dirname + '/index.html',
   function (err, data) {
     if (err) {
@@ -19,23 +25,27 @@ function handler (req, res) {
 }
 
 let server = http.createServer(handler);
-let primus = new Primus(server, { transformer: 'engine.io' }); //sockjs
+primus = new Primus(server, { transformer: 'engine.io' }); //sockjs
+
 // add rooms extension to Primus
 primus.plugin('rooms', PrimusRooms);
 
 let rooms: {[key: string]: Room} = {};
 
 primus.on('connection', function (spark: Primus.ISpark) {
+  // give user his user for admin info
+  let user = User.fromHeaders(spark.headers);
 
-  // NEXT: more room info to display
+  spark.write({a: 'user', user: user});
   // give room list
+  // NEXT: more room info to display
   spark.write({a: 'rooms', rooms: Object.keys(rooms)});
 
   spark.on('data', function (data) {
     data = data || {};
     let action: string = String(data.a);
     let user = User.fromHeaders(spark.headers);
-    let roomName = data.roomName.replace(/ /g, '-');
+    let roomName = data.r.replace(/ /g, '-');
     let roomAdminName = `${roomName}-admin`;
     let room;
     if (rooms.hasOwnProperty(roomName)) {
@@ -46,23 +56,31 @@ primus.on('connection', function (spark: Primus.ISpark) {
 
     if (action === 'join') {
       spark.join(roomName, () => {
-        if (user.isAdmin()) {
+        if (!room) {
+          // make client exit not existing room
+          return spark.write({a: 'close'});
+        }
+        if (user.isAdmin) {
           spark.join(roomAdminName, () => {
-            // TODO: send session info
+            spark.write({a: 'room', room: room});
+            primus.room(roomName).write({ a: 'voters', voters: room.voters});
           });
         } else {
           room.joinVoters(user);
+          spark.write({a: 'room', room: room.getFilteredRoom()});
+          primus.room(roomName).write({ a: 'voters', voters: room.voters});
         }
-        primus.room(roomName).write({ a: 'voters', voters: room.voters});
-
         // NEXT: send player history
       });
 
     };
 
     if (action === 'leave') {
+      if (!room) {
+        return;
+      }
       spark.leave(roomName, () => {
-        if (user.isAdmin()) {
+        if (user.isAdmin) {
           spark.leave(roomAdminName);
         } else {
           room.leaveVoters(user);
@@ -83,7 +101,7 @@ primus.on('connection', function (spark: Primus.ISpark) {
     // vote -- update answers
 
     // ADMIN commands
-    if (!user.isAdmin()) {
+    if (!user.isAdmin) {
       return;
     }
 
@@ -95,40 +113,65 @@ primus.on('connection', function (spark: Primus.ISpark) {
       room.admins.push(user);
       room.course = data.course;
       rooms[roomName] = room;
+
+      // NEXT optimize
+      // send new room list to everybody
+      primus.write({a: 'rooms', rooms: Object.keys(rooms)});
+    }
+
+    if (!room) {
+      return;
     }
 
     if (action === 'add_question') {
-      let question = new Question();
-      question.content = data.content;
-      question.answer = data.answers;
+      let question = new Question(data.q);
       // TODO: question.save()
 
       room.questions.push(question);
-      // send new questions to admins (optional multiadmin)
+      primus.room(roomAdminName).write({a: 'room', room: room});
       // update total questions? room_info
     }
 
-    // setQuestion -- lookup question (start/stop times)
-    /*
-      // stop current question stop if question started and not stopped
-      // setCurrentIndex
-      // start questionTime if null and send question else send question with answer
-    */
-    /*
-      // reset question
-      // remove votes
-      // set dates stop and start to null
-      // setQuestion
-    */
+    if (action === 'set_state') {
+      if (data.v === 'lobby') {
+        room.state = 'lobby';
+        primus.room(roomName).write({a: 'state', v: 'lobby'});
+      }
 
-    if (action === 'show_results') {
-      primus.room(roomName).write({a: 'results', results: room.results()});
+      if (data.v === 'question') {
+        let question = room.questions[room.currentQuestionIndex];
+        if (room.state === 'question' && !question.stop) {
+          question.stop = new Date();
+          // TODO: save;
+        }
+        room.state = 'question';
+        room.currentQuestionIndex = parseInt(data.q, 10);
+        question = room.questions[room.currentQuestionIndex];
+        if (question.stop && !data.reset) {
+          // send question with answers
+        } else {
+          question.start = new Date();
+          question.stop = undefined;
+          question.votes = [];
+          // TODO: save;
+          // send question
+        }
+      }
+
+      if (data.v === 'results') {
+        room.state = 'results';
+        primus.room(roomName).write({a: 'state', v: 'results', results: room.results()});
+      }
     }
 
     if (action === 'close_room') {
       delete rooms[roomName];
       primus.room(roomName).write({a: 'close'});
       primus.room(roomName).empty();
+
+      // NEXT optimize
+      // send new room list to everybody
+      primus.write({a: 'rooms', rooms: Object.keys(rooms)});
     }
 
     // SEND
@@ -162,4 +205,4 @@ primus.on('connection', function (spark: Primus.ISpark) {
   });
 });
 
-server.listen(9000);
+server.listen(3033);
