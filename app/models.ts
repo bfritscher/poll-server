@@ -4,10 +4,10 @@ export class User {
     email: string;
     isAdmin: Boolean;
 
-    static fromHeaders(headers: any[]): User {
+    static fromHeaders(headers: any): User {
         let user = new User();
         // TODO get user from headers
-        console.log(headers['mail']);
+        console.log(headers.mail);
         user.email = 'boris';
         user.isAdmin = admins.indexOf(user.email) > -1;
         user.isAdmin = headers['user-agent'].indexOf('Chrome') > 0;

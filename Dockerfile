@@ -8,7 +8,7 @@ WORKDIR /app
 RUN npm install
 COPY /app /app/app
 COPY /typings /app/typings
-RUN grunt
+RUN node_modules/grunt-cli/bin/grunt
 
 # Define default command.
-CMD ["supervisor", "--watch", "/app/dist", "dist/server.js"]
+CMD ["node", "node_modules/supervisor/lib/cli-wrapper.js", "--watch", "/app/dist", "dist/server.js"]
