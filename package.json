@@ -27,6 +27,7 @@
     "engine.io": "^1.6.11",
     "express": "^4.14.0",
     "primus": "^6.0.3",
-    "primus-rooms": "^3.4.1"
+    "primus-rooms": "^3.4.1",
+    "ws": "^1.1.1"
   }
 }
