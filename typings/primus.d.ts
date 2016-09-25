@@ -27,11 +27,13 @@ declare module 'primus' {
         transforms(event: string, parser: (packet: any, next: any) => void): void; // might be better tied to a TSD for https://github.com/primus/emits
         rooms():any;
         room(name: string): IRoom;
+        empty(name: string);
       }
 
       interface IRoom {
         write(data: any): void;
         clients(cb: (data: any) => void): any[];
+        empty(): void;
       }
 
       interface IPrimusOptions {

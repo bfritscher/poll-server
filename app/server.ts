@@ -32,24 +32,28 @@ primus.on('connection', function (spark: Primus.ISpark) {
   spark.write({a: 'rooms', rooms: Object.keys(rooms)});
 
   spark.on('data', function (data) {
-    // NEXT cleanup room lookup, handle room not found
     data = data || {};
     let action: string = String(data.a);
     let user = User.fromHeaders(spark.headers);
+    let roomName = data.roomName.replace(/ /g, '-');
+    let roomAdminName = `${roomName}-admin`;
+    let room;
+    if (rooms.hasOwnProperty(roomName)) {
+      room = rooms[roomName];
+    }
 
     // SHARED commands
 
     if (action === 'join') {
-      spark.join(data.roomName, () => {
-        let room = rooms[data.roomName];
+      spark.join(roomName, () => {
         if (user.isAdmin()) {
-          spark.join(`${data.roomName}-admin`, () => {
+          spark.join(roomAdminName, () => {
             // TODO: send session info
           });
         } else {
           room.joinVoters(user);
         }
-        primus.room(data.roomName).write({ a: 'voters', voters: room.voters});
+        primus.room(roomName).write({ a: 'voters', voters: room.voters});
 
         // NEXT: send player history
       });
@@ -57,14 +61,14 @@ primus.on('connection', function (spark: Primus.ISpark) {
     };
 
     if (action === 'leave') {
-      spark.leave(data.roomName, () => {
-        let room = rooms[data.roomName];
+      spark.leave(roomName, () => {
         if (user.isAdmin()) {
-          spark.leave(`${data.roomName}-admin`);
+          spark.leave(roomAdminName);
         } else {
           room.leaveVoters(user);
         }
-        primus.room(data.roomName).write({ a: 'voters', voters: room.voters});
+        // TODO only count? for users
+        primus.room(roomName).write({ a: 'voters', voters: room.voters});
 
       });
     }
@@ -84,22 +88,24 @@ primus.on('connection', function (spark: Primus.ISpark) {
     }
 
     if (action === 'create_room') {
-      if (rooms.hasOwnProperty(data.roomName)) {
+      if (rooms.hasOwnProperty(roomName)) {
         return;
       }
-      let room = new Room(data.roomName);
+      room = new Room(roomName);
       room.admins.push(user);
       room.course = data.course;
-      rooms[data.roomName] = room;
+      rooms[roomName] = room;
     }
 
     if (action === 'add_question') {
-      let room = rooms[data.roomName];
       let question = new Question();
-      // object to instance?
+      question.content = data.content;
+      question.answer = data.answers;
+      // TODO: question.save()
 
       room.questions.push(question);
       // send new questions to admins (optional multiadmin)
+      // update total questions? room_info
     }
 
     // setQuestion -- lookup question (start/stop times)
@@ -116,15 +122,13 @@ primus.on('connection', function (spark: Primus.ISpark) {
     */
 
     if (action === 'show_results') {
-      let room = rooms[data.roomName];
-      primus.room(data.roomName).write({a: 'results', results: room.results()});
+      primus.room(roomName).write({a: 'results', results: room.results()});
     }
 
     if (action === 'close_room') {
-      delete rooms[data.roomName];
-      primus.room(data.roomName).write({a: 'close'}, () => {
-        primus.room(data.roomName).empty();
-      });
+      delete rooms[roomName];
+      primus.room(roomName).write({a: 'close'});
+      primus.room(roomName).empty();
     }
 
     // SEND
@@ -144,7 +148,7 @@ primus.on('connection', function (spark: Primus.ISpark) {
     // save rooms/sessions
 
     // NEXT
-    
+
     // question with no answers to display only content?
 
     // userpics from api?
