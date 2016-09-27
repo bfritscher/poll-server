@@ -45,6 +45,9 @@ primus.on('connection', function (spark: Primus.ISpark) {
     data = data || {};
     let action: string = String(data.a);
     let user = User.fromHeaders(spark.headers);
+    if (!data.r) {
+      return;
+    }
     let roomName = data.r.replace(/ /g, '-');
     let roomAdminName = `${roomName}-admin`;
     let room;
