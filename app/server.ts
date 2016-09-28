@@ -63,11 +63,13 @@ primus.on('connection', function (spark: Primus.ISpark) {
         if (user.isAdmin) {
           spark.join(roomAdminName, () => {
             spark.write({a: 'room', room: room});
+            // NEXT: only send new player
             primus.room(roomName).write({ a: 'voters', voters: room.voters});
           });
         } else {
           room.joinVoters(user);
           spark.write({a: 'room', room: room.getFilteredRoom()});
+          // NEXT: only send new player
           primus.room(roomName).write({ a: 'voters', voters: room.voters});
         }
         // NEXT: send player history
@@ -85,7 +87,7 @@ primus.on('connection', function (spark: Primus.ISpark) {
         } else {
           room.leaveVoters(user);
         }
-        // TODO only count? for users
+        // NEXT only count? for users ony user not full list
         primus.room(roomName).write({ a: 'voters', voters: room.voters});
 
       });
