@@ -26,6 +26,8 @@ export class Question {
     votes: {[key: string]: number[]} = {};
     start: Date;
     stop: Date;
+
+    //transient
     correctIndexes: number[];
     isMultiple: boolean;
 
@@ -59,18 +61,41 @@ export class Question {
             return indexes;
         }, []);
     }
+
+    votesCount(): number {
+        return  Object.keys(this.votes).length;
+    }
+
+    getFiltered(): any {
+        let question: any = {
+            content: this.content,
+            answers: this.answers.map((a) => { return {content: a.content}; }),
+            start: this.start,
+            stop: this.stop,
+            isMultiple: this.isMultiple,
+            votesCount: this.votesCount()
+        };
+        if (this.stop) {
+            // with results
+            question.answers = this.answers;
+            question.votesByAnswers = this.votesByAnswers();
+        }
+        return question;
+    }
 }
 
 export class Room {
-    // TODO dicts?
-    voters: User[] = [];
-    admins: User[] = [];
     name: string;
     course: string;
     created: Date;
     questions: Question[] = [];
     state: string = 'lobby';
-    currentQuestionIndex: number;
+    admins: User[] = [];
+
+    // transient
+    // TODO dicts?
+    voters: User[] = [];
+    questionsCount = 0;
 
     constructor(name: string) {
         this.name = name;
@@ -96,21 +121,15 @@ export class Room {
             course: this.course,
             created: this.created,
             state: this.state,
-            questions: this.questions.map((question) => {
-                return {
-                    content: question.content,
-                    start: question.start,
-                    stop: question.stop,
-                    isMultiple: question.isMultiple,
-                    answers: question.answers.map((answer) => {
-                        return {
-                            content: answer.content
-                        };
-                    })
-                };
-            }),
-            currentQuestionIndex: this.currentQuestionIndex
+            questionsCount: this.questions.length
         };
+    }
+
+    getCurrentQuestion(): Question {
+        if (this.state.indexOf('q') === 0) {
+            return this.questions[parseInt(this.state.slice(1), 10)];
+        }
+        return null;
     }
 
     results(): any[] {
