@@ -1,20 +1,43 @@
-let admins = ['boris'];
+import * as db from './db';
+
+let admins = ['boris.fritscher@he-arc.ch'];
 
 export class User {
+    id: number;
     email: string;
     firstname: string;
     lastname: string;
     isAdmin: Boolean;
     avatar: string;
 
-    static fromHeaders(headers: any): User {
-        let user = new User();
-        // TODO get user from headers
-        console.log(headers.mail);
-        user.email = 'boris';
-        user.isAdmin = admins.indexOf(user.email) > -1;
-        user.isAdmin = headers['user-agent'].indexOf('Chrome') > 0;
-        return user;
+    static fromHeaders(headers: any): Promise<User> {
+        return new Promise((resolve, reject) => {
+            let user = new User();
+            user.email = headers.mail || 'unknown';
+            user.firstname = headers.givenName || 'unknown';
+            user.lastname = headers.surname || 'name';
+            user.isAdmin = admins.indexOf(user.email) > -1;
+
+            // DEBUG user.isAdmin = headers['user-agent'].indexOf('Chrome') > 0;
+
+            (<any>db.User.findOrCreate({
+                where: {
+                    email: user.email
+                },
+                defaults: {
+                    email: user.email,
+                    firstname: user.firstname,
+                    lastname: user.lastname
+                }
+            })).spread((dbUser: any) => {
+                user.id = dbUser.get('id');
+                console.log('user ' + user.id);
+                // update?
+                resolve(user);
+            }, (err) => {
+                reject(err);
+            });
+        });
     }
 }
 
@@ -24,6 +47,8 @@ interface IAnswer {
 }
 
 export class Question {
+    id: number;
+    index: number;
     content: string;
     answers: IAnswer[] = [];
     votes: { [key: string]: number[] } = {};
@@ -42,8 +67,12 @@ export class Question {
     }
 
     answer(user: User, vote: number[]): void {
-        // NEXT get vote timings?
         this.votes[user.email] = vote;
+        db.Vote.upsert({
+            user_id: user.id,
+            question_id: this.id,
+            answer: vote.join(',')
+        });
     }
 
     votesByAnswers(): number[] {
@@ -85,9 +114,42 @@ export class Question {
         }
         return question;
     }
+
+    save(room): void {
+        if (this.id) {
+            db.Question.upsert({
+                id: this.id,
+                index: this.index,
+                session_id: room.id,
+                content: this.content,
+                start: this.start,
+                stop: this.stop
+            });
+        } else {
+            db.Question.create({
+                index: this.index,
+                session_id: room.id,
+                content: this.content,
+                start: this.start,
+                stop: this.stop
+            }).then((dbQuestion: any) => {
+                this.id = dbQuestion.get('id');
+                db.Answer.bulkCreate(this.answers.map((answer, index) => {
+                    return {
+                        index: index,
+                        question_id: this.id,
+                        content: answer.content,
+                        correct: answer.correct
+                    };
+                }));
+            });
+        }
+
+    }
 }
 
 export class Room {
+    id: number;
     name: string;
     course: string;
     created: Date;
@@ -170,5 +232,28 @@ export class Room {
         return scores.sort((a, b) => {
             return b.score - a.score;
         });
+    }
+
+    save(): void {
+        if (this.id) {
+            db.Session.upsert({
+                id: this.id,
+                course: this.course,
+                created: this.created,
+                state: this.state,
+                owner_id: this.owner.id
+            });
+        } else {
+            db.Session.create({
+                name: this.name,
+                course: this.course,
+                created: this.created,
+                state: this.state,
+                owner_id: this.owner.id
+            }).then((dbSession: any) => {
+                this.id = dbSession.get('id');
+            });
+        }
+
     }
 }

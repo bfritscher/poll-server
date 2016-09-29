@@ -3,6 +3,8 @@ import * as http from 'http';
 import * as fs from 'fs';
 import * as Primus from 'primus';
 import { User, Room, Question } from './models';
+import * as db from './db';
+
 let PrimusRooms = require('primus-rooms');
 let primus;
 
@@ -30,11 +32,13 @@ primus = new Primus(server, { transformer: 'engine.io' });
 // add rooms extension to Primus
 primus.plugin('rooms', PrimusRooms);
 
+// TODO: load rooms
+
 let rooms: { [key: string]: Room } = {};
 
-primus.on('connection', function (spark: Primus.ISpark) {
+primus.on('connection', async function (spark: Primus.ISpark) {
   // give user his user for admin info
-  let user = User.fromHeaders(spark.headers);
+  let user = await User.fromHeaders(spark.headers);
 
   spark.write({ a: 'user', v: user });
   // give room list
@@ -105,7 +109,7 @@ primus.on('connection', function (spark: Primus.ISpark) {
 
     // USER commands
 
-    if (action === 'vote') {
+    if (action === 'vote' && !user.isAdmin) {
       let question = room.getCurrentQuestion();
       if (question && !question.stop) {
         question.answer(user, data.v);
@@ -131,8 +135,9 @@ primus.on('connection', function (spark: Primus.ISpark) {
       }
       room = new Room(roomName);
       room.owner = user;
-      room.course = data.course;
+      room.course = data.c;
       rooms[roomName] = room;
+      room.save();
 /* DEBUG
       let names = [
         'Karyl Batterton',
@@ -179,9 +184,9 @@ primus.on('connection', function (spark: Primus.ISpark) {
         return;
       }
       let question = new Question(data.q);
-      // TODO: question.save()
+      question.index = room.questions.push(question) - 1;
+      question.save(room);
 
-      room.questions.push(question);
       primus.room(roomAdminName).write({ a: 'questions', v: room.questions });
       primus.room(roomName).write({ a: 'questionsCount', v: room.questions.length });
     }
@@ -194,22 +199,23 @@ primus.on('connection', function (spark: Primus.ISpark) {
       // stop active question if votes > 0 or setting same question again (= showing answers even without votes)
       if (question && !question.stop && (Object.keys(question.votes).length > 0 || data.v === room.state)) {
         question.stop = new Date();
-        // TODO: save;
+        question.save(room);
       }
       if (data.v === 'lobby') {
         room.state = 'lobby';
-        // TODO: save;
+        room.save();
         primus.room(roomName).write({ a: 'state', v: 'lobby' });
       }
 
       if (data.v.indexOf('q') === 0) {
         room.state = data.v;
+        room.save();
         question = room.getCurrentQuestion();
         if (!question.stop || data.reset) {
           question.start = new Date();
           question.stop = undefined;
           question.votes = {};
-          // TODO: save;
+          question.save(room);
           primus.room(roomAdminName).write({ a: 'questions', v: room.questions});
         }
         primus.room(roomName).write({ a: 'state', v: data.v, question: question.getFiltered(), reset: data.reset });
@@ -217,12 +223,14 @@ primus.on('connection', function (spark: Primus.ISpark) {
 
       if (data.v === 'results') {
         room.state = 'results';
-        // TODO :save
+        room.save();
         primus.room(roomName).write({ a: 'state', v: 'results', results: room.results() });
       }
     }
 
     if (action === 'close_room') {
+      room.state = 'closed';
+      room.save();
       delete rooms[roomName];
       primus.room(roomName).write({ a: 'close' });
       primus.room(roomName).empty();
@@ -231,11 +239,6 @@ primus.on('connection', function (spark: Primus.ISpark) {
       // send new room list to everybody
       primus.write({ a: 'rooms', v: Object.keys(rooms) });
     }
-
-    // PERSISTENCE ? ids? check turning point
-    // save votes and modify votes
-    // save new questions
-    // save rooms/sessions
 
     // NEXT
 
@@ -252,4 +255,47 @@ primus.on('connection', function (spark: Primus.ISpark) {
   });
 });
 
-server.listen(3033);
+db.ready.then(() => {
+  db.Session.findAll({
+    where: {
+      state: {
+        $ne: 'closed'
+      }
+    },
+    include: [
+      {model: db.User, as: 'owner'},
+      {model: db.Question, as: 'questions', include: [ {model: db.Answer, as: 'answers'}, {model: db.Vote, as: 'votes', include: [{model: db.User, as: 'user'}]}]}
+    ]
+  }).then((roomsData) => {
+    roomsData.forEach((roomData: any) => {
+      let room = new Room(roomData.name);
+      room.id = roomData.id;
+      room.state = roomData.state;
+      room.course = roomData.course;
+      room.created = roomData.created;
+      room.owner = roomData.owner;
+      roomData.questions.forEach((questionData) => {
+        let answers = [];
+        questionData.answers.forEach((answer) => {
+          answers[answer.index] = answer;
+        });
+        let question = new Question({content: questionData.content, answers: answers});
+        question.id = questionData.id;
+        question.index = questionData.index;
+        question.start = questionData.start;
+        question.stop = questionData.stop;
+
+        questionData.votes.forEach((vote) => {
+          question.votes[vote.user.email] = vote.answer.split(',').map((e) => {
+            return parseInt(e, 10);
+          });
+          room.participants[vote.user.email] = vote.user;
+        });
+        room.questions[question.index] = question;
+      });
+
+      rooms[room.name] = room;
+    });
+    server.listen(3033);
+  });
+});

@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "devDependencies": {
     "@types/node": "^6.0.41",
+    "@types/sequelize": "^4.0.36",
     "grunt": "^1.0.1",
     "grunt-cli": "^1.2.0",
     "grunt-concurrent": "^2.0.0",
@@ -26,7 +27,10 @@
     "cors": "^2.8.1",
     "engine.io": "^1.6.11",
     "express": "^4.14.0",
+    "pg": "^6.1.0",
+    "pg-hstore": "^2.3.2",
     "primus": "^6.0.3",
-    "primus-rooms": "^3.4.1"
+    "primus-rooms": "^3.4.1",
+    "sequelize": "^3.24.3"
   }
 }
