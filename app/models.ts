@@ -14,7 +14,7 @@ export class User {
         return new Promise((resolve, reject) => {
             let user = new User();
             user.email = headers.mail || 'unknown';
-            user.firstname = headers.givenName || 'unknown';
+            user.firstname = headers.givenname || 'unknown';
             user.lastname = headers.surname || 'name';
             user.isAdmin = admins.indexOf(user.email) > -1;
 
