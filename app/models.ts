@@ -2,7 +2,10 @@ let admins = ['boris'];
 
 export class User {
     email: string;
+    firstname: string;
+    lastname: string;
     isAdmin: Boolean;
+    avatar: string;
 
     static fromHeaders(headers: any): User {
         let user = new User();
@@ -17,13 +20,13 @@ export class User {
 
 interface IAnswer {
     content: string;
-    correct: boolean|number;
+    correct: boolean | number;
 }
 
 export class Question {
     content: string;
     answers: IAnswer[] = [];
-    votes: {[key: string]: number[]} = {};
+    votes: { [key: string]: number[] } = {};
     start: Date;
     stop: Date;
 
@@ -31,7 +34,7 @@ export class Question {
     correctIndexes: number[];
     isMultiple: boolean;
 
-    constructor(data: {content: string, answers: IAnswer[]}) {
+    constructor(data: { content: string, answers: IAnswer[] }) {
         this.content = data.content;
         this.answers = data.answers || [];
         this.correctIndexes = this.computeCorrectIndexes();
@@ -63,13 +66,13 @@ export class Question {
     }
 
     votesCount(): number {
-        return  Object.keys(this.votes).length;
+        return Object.keys(this.votes).length;
     }
 
     getFiltered(): any {
         let question: any = {
             content: this.content,
-            answers: this.answers.map((a) => { return {content: a.content}; }),
+            answers: this.answers.map((a) => { return { content: a.content }; }),
             start: this.start,
             stop: this.stop,
             isMultiple: this.isMultiple,
@@ -90,29 +93,30 @@ export class Room {
     created: Date;
     questions: Question[] = [];
     state: string = 'lobby';
-    admins: User[] = [];
+    owner: User;
+    // anyone who has voted at least once
+    participants: { [key: string]: User } = {};
 
-    // transient
-    // TODO dicts?
-    voters: User[] = [];
-    questionsCount = 0;
+    // transient currently online
+    voters: { [key: string]: User } = {};
 
     constructor(name: string) {
         this.name = name;
         this.created = new Date();
     }
 
-    joinVoters(user: User): void {
-        if (this.voters.map((u) => { return u.email; }).indexOf(user.email) === -1) {
-            this.voters.push(user);
+    addParticipant(user: User): void {
+        if (!this.participants.hasOwnProperty(user.email)) {
+            this.participants[user.email] = user;
         }
     }
 
+    joinVoters(user: User): void {
+        this.voters[user.email] = user;
+    }
+
     leaveVoters(user: User): void {
-        let index = this.voters.map((u) => { return u.email; }).indexOf(user.email);
-        if ( index > -1) {
-            this.voters.splice(index, 1);
-        }
+        delete this.voters[user.email];
     }
 
     getFilteredRoom(): any {
@@ -121,7 +125,8 @@ export class Room {
             course: this.course,
             created: this.created,
             state: this.state,
-            questionsCount: this.questions.length
+            questionsCount: this.questions.length,
+            voters: this.voters
         };
     }
 
@@ -132,8 +137,17 @@ export class Room {
         return null;
     }
 
+    getUserAnswers(user: User): { [key: number]: number[] } {
+        return this.questions.reduce((answers, question, index) => {
+            if (question.votes.hasOwnProperty(user.email)) {
+                answers[index] = question.votes[user.email];
+            }
+            return answers;
+        }, {});
+    }
+
     results(): any[] {
-        let results: {[key: string]: number} = {};
+        let results: { [key: string]: number } = {};
         this.questions.forEach((question) => {
             Object.keys(question.votes).forEach((userKey) => {
                 let score = question.votes[userKey].reduce((score, index) => {
@@ -151,8 +165,7 @@ export class Room {
         // transform to sorted array
         let scores = [];
         Object.keys(results).forEach((userKey) => {
-            // TODO: userlookup
-            scores.push({user: userKey, score: results[userKey]});
+            scores.push({ user: this.participants[userKey], score: results[userKey] });
         });
         return scores.sort((a, b) => {
             return b.score - a.score;

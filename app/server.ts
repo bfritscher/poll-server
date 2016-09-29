@@ -44,13 +44,12 @@ primus.on('connection', function (spark: Primus.ISpark) {
   spark.on('data', function (data) {
     data = data || {};
     let action: string = String(data.a);
-    let user = User.fromHeaders(spark.headers);
     if (!data.r) {
       return;
     }
     let roomName = data.r.replace(/ /g, '-');
     let roomAdminName = `${roomName}-admin`;
-    let room;
+    let room: Room;
     if (rooms.hasOwnProperty(roomName)) {
       room = rooms[roomName];
     }
@@ -68,20 +67,22 @@ primus.on('connection', function (spark: Primus.ISpark) {
           spark.join(roomAdminName, () => {
             // send full room with list of question to admin
             spark.write({ a: 'room', v: room });
+            spark.write({ a: 'questionsCount', v: room.questions.length });
           });
         } else {
           room.joinVoters(user);
         }
         spark.write({ a: 'room', v: room.getFilteredRoom() });
-        // NEXT: only send new player
-        primus.room(roomName).write({ a: 'voters', v: room.voters });
-        // send current question
+        spark.write({ a: 'user_answers', v: room.getUserAnswers(user) });
+        primus.room(roomName).write({ a: 'voter_join', v: user });
+        // restore state send current question or results (refactor?)
         let currentQuestion = room.getCurrentQuestion();
         if (currentQuestion) {
           spark.write({ a: 'state', v: room.state, question: currentQuestion.getFiltered()});
         }
-
-        // NEXT: send player history
+        if (room.state === 'results') {
+          primus.room(roomName).write({ a: 'state', v: 'results', results: room.results() });
+        }
       });
 
     };
@@ -97,7 +98,7 @@ primus.on('connection', function (spark: Primus.ISpark) {
           room.leaveVoters(user);
         }
         // NEXT only count? for users ony user not full list
-        primus.room(roomName).write({ a: 'voters', v: room.voters });
+        primus.room(roomName).write({ a: 'voter_left', v: user.email });
 
       });
     }
@@ -106,11 +107,17 @@ primus.on('connection', function (spark: Primus.ISpark) {
 
     if (action === 'vote') {
       let question = room.getCurrentQuestion();
-      if (question) {
-        question.votes[user.email] = data.v;
+      if (question && !question.stop) {
+        question.answer(user, data.v);
+        room.addParticipant(user);
         primus.room(roomName).write({ a: 'votesCount', q: data.q, v: question.votesCount() });
         primus.room(roomAdminName).write({ a: 'vote', u: user.email, v: data.v, q: room.questions.indexOf(question) });
       }
+    }
+
+    if (action === 'user_avatar') {
+      room.voters[user.email].avatar = data.v;
+      primus.room(roomName).write({ a: 'user_avatar', v: data.v, u: user.email });
     }
 
     // ADMIN commands
@@ -123,10 +130,41 @@ primus.on('connection', function (spark: Primus.ISpark) {
         return;
       }
       room = new Room(roomName);
-      room.admins.push(user);
+      room.owner = user;
       room.course = data.course;
       rooms[roomName] = room;
+/* DEBUG
+      let names = [
+        'Karyl Batterton',
+        'Adaline Combes',
+        'Shanel Weingarten',
+        'Wade Trainer',
+        'Pasquale Prochnow',
+        'Latanya Spevak',
+        'Elise Domingues',
+        'Noreen Perras',
+        'Randi Buell',
+        'Wiley Seger',
+        'Latricia Halderman',
+        'Khadijah Garriott',
+        'Yolando Kierstead',
+        'Griselda Gilmer',
+        'Lashonda Oropeza',
+        'Marlen Budzinski',
+        'Elliott Ismail',
+        'Palma Peaden',
+        'Velia Mix',
+        'Debra Beaton'
+      ];
 
+      names.forEach((name) => {
+        let u = new User();
+        u.email = name;
+        u.firstname = name.split(' ')[0];
+        u.lastname = name.split(' ')[1];
+        room.joinVoters(u);
+      });
+*/
       // NEXT optimize
       // send new room list to everybody
       primus.write({ a: 'rooms', v: Object.keys(rooms) });
@@ -149,8 +187,12 @@ primus.on('connection', function (spark: Primus.ISpark) {
     }
 
     if (action === 'set_state') {
+      if (!data.v) {
+        return;
+      }
       let question = room.getCurrentQuestion();
-      if (question && !question.stop) {
+      // stop active question if votes > 0 or setting same question again (= showing answers even without votes)
+      if (question && !question.stop && (Object.keys(question.votes).length > 0 || data.v === room.state)) {
         question.stop = new Date();
         // TODO: save;
       }
@@ -168,9 +210,9 @@ primus.on('connection', function (spark: Primus.ISpark) {
           question.stop = undefined;
           question.votes = {};
           // TODO: save;
-          primus.room(roomAdminName).write({ a: 'questions', v: room.questions });
+          primus.room(roomAdminName).write({ a: 'questions', v: room.questions});
         }
-        primus.room(roomName).write({ a: 'state', v: data.v, question: question.getFiltered() });
+        primus.room(roomName).write({ a: 'state', v: data.v, question: question.getFiltered(), reset: data.reset });
       }
 
       if (data.v === 'results') {
@@ -189,17 +231,6 @@ primus.on('connection', function (spark: Primus.ISpark) {
       // send new room list to everybody
       primus.write({ a: 'rooms', v: Object.keys(rooms) });
     }
-
-    // SEND
-
-    // question (with answers and filtered)
-    // vote (to admin)
-    // vote_count
-
-    // results
-    // voters
-    // rooms
-    // close
 
     // PERSISTENCE ? ids? check turning point
     // save votes and modify votes
