@@ -43,7 +43,7 @@ let rooms: { [key: string]: Room } = {};
 primus.on('connection', async function (spark: Primus.ISpark) {
   // give user his user for admin info
   let user = await User.fromHeaders(spark.headers);
-  console.log(JSON.stringify(spark.headers));
+  console.log(spark.headers);
 
   spark.write({ a: 'user', v: user });
   // give room list
