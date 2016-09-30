@@ -7,7 +7,7 @@ import * as db from './db';
 let PrimusRooms = require('primus-rooms');
 let primus;
 
-function handler(req: http.ServerRequest, res: http.ServerResponse) {
+function handler(req: http.IncomingMessage, res: http.ServerResponse) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Request-Method', '*');
@@ -37,7 +37,8 @@ function handler(req: http.ServerRequest, res: http.ServerResponse) {
     });
   }
   else if (req.url === '/headers') {
-    res.end(JSON.stringify(req.headers));
+    res.end(JSON.stringify(req.rawHeaders));
+    console.log(req);
   }
   else {
     res.writeHead(404);
