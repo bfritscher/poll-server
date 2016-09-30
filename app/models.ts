@@ -15,7 +15,7 @@ export class User {
             let user = new User();
             user.email = headers.mail || 'unknown';
             user.firstname = headers.givenname || 'unknown';
-            user.lastname = headers.surname || 'name';
+            user.lastname = headers.surname || 'unknown';
             user.isAdmin = admins.indexOf(user.email) > -1;
 
             // DEBUG user.isAdmin = headers['user-agent'].indexOf('Chrome') > 0;

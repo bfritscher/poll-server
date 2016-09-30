@@ -45,7 +45,14 @@ primus.on('connection', async function (spark: Primus.ISpark) {
   // NEXT: more room info to display
   spark.write({ a: 'rooms', v: Object.keys(rooms) });
 
-  spark.on('data', function (data) {
+  spark.on('leaveroom', (roomName) => {
+    if (!user.isAdmin && rooms.hasOwnProperty(roomName)) {
+      rooms[roomName].leaveVoters(user);
+    }
+    primus.room(roomName).write({ a: 'voter_left', v: user.email });
+  });
+
+  spark.on('data', (data) => {
     data = data || {};
     let action: string = String(data.a);
     if (!data.r) {
@@ -67,28 +74,29 @@ primus.on('connection', async function (spark: Primus.ISpark) {
       }
       spark.join(roomName, () => {
         // NEXT admin of this room?
+        spark.write({ a: 'room', v: room.getFilteredRoom() });
         if (user.isAdmin) {
           spark.join(roomAdminName, () => {
             // send full room with list of question to admin
             spark.write({ a: 'room', v: room });
+            // since not included in full room send it
             spark.write({ a: 'questionsCount', v: room.questions.length });
           });
         } else {
           room.joinVoters(user);
+          primus.room(roomName).write({ a: 'voter_join', v: user });
+          spark.write({ a: 'user_answers', v: room.getUserAnswers(user) });
         }
-        spark.write({ a: 'room', v: room.getFilteredRoom() });
-        spark.write({ a: 'user_answers', v: room.getUserAnswers(user) });
-        primus.room(roomName).write({ a: 'voter_join', v: user });
-        // restore state send current question or results (refactor?)
+
+        // restore state send current question or results info missing in room we sent (refactor?)
         let currentQuestion = room.getCurrentQuestion();
         if (currentQuestion) {
           spark.write({ a: 'state', v: room.state, question: currentQuestion.getFiltered()});
         }
         if (room.state === 'results') {
-          primus.room(roomName).write({ a: 'state', v: 'results', results: room.results() });
+          spark.write({ a: 'state', v: 'results', results: room.results() });
         }
       });
-
     };
 
     if (action === 'leave') {
@@ -98,12 +106,7 @@ primus.on('connection', async function (spark: Primus.ISpark) {
       spark.leave(roomName, () => {
         if (user.isAdmin) {
           spark.leave(roomAdminName);
-        } else {
-          room.leaveVoters(user);
         }
-        // NEXT only count? for users ony user not full list
-        primus.room(roomName).write({ a: 'voter_left', v: user.email });
-
       });
     }
 
@@ -114,6 +117,11 @@ primus.on('connection', async function (spark: Primus.ISpark) {
       if (question && !question.stop) {
         question.answer(user, data.v);
         room.addParticipant(user);
+        // refactor? if missing voter from disconnect
+        if (!room.voters.hasOwnProperty(user.email)) {
+          room.joinVoters(user);
+          primus.room(roomName).write({ a: 'voter_join', v: user });
+        }
         primus.room(roomName).write({ a: 'votesCount', q: data.q, v: question.votesCount() });
         primus.room(roomAdminName).write({ a: 'vote', u: user.email, v: data.v, q: room.questions.indexOf(question) });
       }
