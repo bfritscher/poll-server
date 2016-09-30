@@ -1,6 +1,5 @@
 /// <reference path="../typings/primus.d.ts" />
 import * as http from 'http';
-import * as fs from 'fs';
 import * as Primus from 'primus';
 import { User, Room, Question } from './models';
 import * as db from './db';
@@ -22,38 +21,28 @@ function handler(req: http.ServerRequest, res: http.ServerResponse) {
   }
 
   if (req.url === '/primus/primus.js') {
-    return res.end(primus.library());
+    res.end(primus.library());
 
   }
-
-  if (req.url === '/api/course') {
+  else if (req.url === '/api/course') {
     db.getCourseList().then((result) => {
        res.setHeader('Content-Type', 'application/json');
        res.end(JSON.stringify(result));
     });
   }
-
-  if (req.url.indexOf('/api/course/') > -1) {
+  else if (req.url.indexOf('/api/course/') > -1) {
     db.getCourseDetail(req.url.slice('/api/course/'.length)).then((result) => {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(result));
     });
   }
-
-  if (req.url === '/headers') {
-    return res.end(JSON.stringify(req.headers));
+  else if (req.url === '/headers') {
+    res.end(JSON.stringify(req.headers));
   }
-
-  fs.readFile(__dirname + '/index.html',
-    function (err, data) {
-      if (err) {
-        res.writeHead(500);
-        return res.end('Error loading index.html');
-      }
-
-      res.writeHead(200);
-      res.end(data);
-    });
+  else {
+    res.writeHead(404);
+    res.end();
+  }
 }
 
 let server = http.createServer(handler);
