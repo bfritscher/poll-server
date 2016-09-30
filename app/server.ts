@@ -31,7 +31,7 @@ function handler(req: http.ServerRequest, res: http.ServerResponse) {
     });
   }
   else if (req.url.indexOf('/api/course/') > -1) {
-    db.getCourseDetail(req.url.slice('/api/course/'.length)).then((result) => {
+    db.getCourseDetail(decodeURI(req.url.slice('/api/course/'.length))).then((result) => {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(result));
     });

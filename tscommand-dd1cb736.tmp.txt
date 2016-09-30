@@ -1,1 +1,0 @@
-"C:\Users\Boris\Documents\GitHub\poll-server\app\db.ts" "C:\Users\Boris\Documents\GitHub\poll-server\app\models.ts" "C:\Users\Boris\Documents\GitHub\poll-server\app\server.ts" "C:\Users\Boris\Documents\GitHub\poll-server\typings\primus.d.ts" --sourcemap --removeComments --target ES6 --module commonjs --outDir dist
