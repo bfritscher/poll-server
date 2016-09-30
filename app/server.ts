@@ -9,9 +9,32 @@ let PrimusRooms = require('primus-rooms');
 let primus;
 
 function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Request-Method', '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
   if (req.url === '/primus/primus.js') {
     return res.send(primus.library());
 
+  }
+
+  if (req.url === '/api/course') {
+    db.getCourseList().then((result) => {
+       res.json(result);
+    });
+  }
+
+  if (req.url.indexOf('/api/course/') > -1) {
+    db.getCourseDetail(req.url.slice('/api/course/'.length)).then((result) => {
+        res.json(result);
+    });
   }
 
   if (req.url === '/headers') {
@@ -35,8 +58,6 @@ primus = new Primus(server, { transformer: 'engine.io' });
 
 // add rooms extension to Primus
 primus.plugin('rooms', PrimusRooms);
-
-// TODO: load rooms
 
 let rooms: { [key: string]: Room } = {};
 
@@ -96,7 +117,7 @@ primus.on('connection', async function (spark: Primus.ISpark) {
         // restore state send current question or results info missing in room we sent (refactor?)
         let currentQuestion = room.getCurrentQuestion();
         if (currentQuestion) {
-          spark.write({ a: 'state', v: room.state, question: currentQuestion.getFiltered()});
+          spark.write({ a: 'state', v: room.state, question: currentQuestion.getFiltered() });
         }
         if (room.state === 'results') {
           spark.write({ a: 'state', v: 'results', results: room.results() });
@@ -151,38 +172,38 @@ primus.on('connection', async function (spark: Primus.ISpark) {
       room.course = data.c;
       rooms[roomName] = room;
       room.save();
-/* DEBUG
-      let names = [
-        'Karyl Batterton',
-        'Adaline Combes',
-        'Shanel Weingarten',
-        'Wade Trainer',
-        'Pasquale Prochnow',
-        'Latanya Spevak',
-        'Elise Domingues',
-        'Noreen Perras',
-        'Randi Buell',
-        'Wiley Seger',
-        'Latricia Halderman',
-        'Khadijah Garriott',
-        'Yolando Kierstead',
-        'Griselda Gilmer',
-        'Lashonda Oropeza',
-        'Marlen Budzinski',
-        'Elliott Ismail',
-        'Palma Peaden',
-        'Velia Mix',
-        'Debra Beaton'
-      ];
+      /* DEBUG
+            let names = [
+              'Karyl Batterton',
+              'Adaline Combes',
+              'Shanel Weingarten',
+              'Wade Trainer',
+              'Pasquale Prochnow',
+              'Latanya Spevak',
+              'Elise Domingues',
+              'Noreen Perras',
+              'Randi Buell',
+              'Wiley Seger',
+              'Latricia Halderman',
+              'Khadijah Garriott',
+              'Yolando Kierstead',
+              'Griselda Gilmer',
+              'Lashonda Oropeza',
+              'Marlen Budzinski',
+              'Elliott Ismail',
+              'Palma Peaden',
+              'Velia Mix',
+              'Debra Beaton'
+            ];
 
-      names.forEach((name) => {
-        let u = new User();
-        u.email = name;
-        u.firstname = name.split(' ')[0];
-        u.lastname = name.split(' ')[1];
-        room.joinVoters(u);
-      });
-*/
+            names.forEach((name) => {
+              let u = new User();
+              u.email = name;
+              u.firstname = name.split(' ')[0];
+              u.lastname = name.split(' ')[1];
+              room.joinVoters(u);
+            });
+      */
       // NEXT optimize
       // send new room list to everybody
       primus.write({ a: 'rooms', v: Object.keys(rooms) });
@@ -229,7 +250,7 @@ primus.on('connection', async function (spark: Primus.ISpark) {
           question.stop = undefined;
           question.votes = {};
           question.save(room);
-          primus.room(roomAdminName).write({ a: 'questions', v: room.questions});
+          primus.room(roomAdminName).write({ a: 'questions', v: room.questions });
         }
         primus.room(roomName).write({ a: 'state', v: data.v, question: question.getFiltered(), reset: data.reset });
       }
@@ -252,19 +273,6 @@ primus.on('connection', async function (spark: Primus.ISpark) {
       // send new room list to everybody
       primus.write({ a: 'rooms', v: Object.keys(rooms) });
     }
-
-    // NEXT
-
-    // question with no answers to display only content?
-
-    // userpics from api?
-    // multi auth? not only shib
-    // annoymous auth?
-    // admin by rooms?
-    // add admins
-    // load sessions?
-    // store questions sets to be instantiated as room/sessions
-
   });
 });
 
@@ -276,8 +284,8 @@ db.ready.then(() => {
       }
     },
     include: [
-      {model: db.User, as: 'owner'},
-      {model: db.Question, as: 'questions', include: [ {model: db.Answer, as: 'answers'}, {model: db.Vote, as: 'votes', include: [{model: db.User, as: 'user'}]}]}
+      { model: db.User, as: 'owner' },
+      { model: db.Question, as: 'questions', include: [{ model: db.Answer, as: 'answers' }, { model: db.Vote, as: 'votes', include: [{ model: db.User, as: 'user' }] }] }
     ]
   }).then((roomsData) => {
     roomsData.forEach((roomData: any) => {
@@ -292,7 +300,7 @@ db.ready.then(() => {
         questionData.answers.forEach((answer) => {
           answers[answer.index] = answer;
         });
-        let question = new Question({content: questionData.content, answers: answers});
+        let question = new Question({ content: questionData.content, answers: answers });
         question.id = questionData.id;
         question.index = questionData.index;
         question.start = questionData.start;
