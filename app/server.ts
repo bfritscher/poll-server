@@ -8,7 +8,7 @@ import * as db from './db';
 let PrimusRooms = require('primus-rooms');
 let primus;
 
-function handler(req, res) {
+function handler(req: http.ServerRequest, res: http.ServerResponse) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Request-Method', '*');
@@ -20,20 +20,23 @@ function handler(req, res) {
     res.end();
     return;
   }
+
   if (req.url === '/primus/primus.js') {
-    return res.send(primus.library());
+    return res.end(primus.library());
 
   }
 
   if (req.url === '/api/course') {
     db.getCourseList().then((result) => {
-       res.json(result);
+       res.setHeader('Content-Type', 'application/json');
+       res.end(JSON.stringify(result));
     });
   }
 
   if (req.url.indexOf('/api/course/') > -1) {
     db.getCourseDetail(req.url.slice('/api/course/'.length)).then((result) => {
-        res.json(result);
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(result));
     });
   }
 
