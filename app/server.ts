@@ -14,6 +14,10 @@ function handler(req, res) {
 
   }
 
+  if (req.url === '/headers') {
+    return res.end(JSON.stringify(req.headers));
+  }
+
   fs.readFile(__dirname + '/index.html',
     function (err, data) {
       if (err) {
@@ -39,6 +43,7 @@ let rooms: { [key: string]: Room } = {};
 primus.on('connection', async function (spark: Primus.ISpark) {
   // give user his user for admin info
   let user = await User.fromHeaders(spark.headers);
+  console.log(JSON.stringify(spark.headers));
 
   spark.write({ a: 'user', v: user });
   // give room list
