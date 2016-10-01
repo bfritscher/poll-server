@@ -1,52 +1,41 @@
 /// <reference path="../typings/primus.d.ts" />
 import * as http from 'http';
+import * as express from 'express';
+import * as bodyParser from 'body-parser';
+import * as cors from 'cors';
 import * as Primus from 'primus';
 import { User, Room, Question } from './models';
 import * as db from './db';
 
 let PrimusRooms = require('primus-rooms');
+let app = express();
 let primus;
+let urlencodeParser = bodyParser.urlencoded({ extended: false });
 
-function handler(req: http.IncomingMessage, res: http.ServerResponse) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Request-Method', '*');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', '*');
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    res.end();
-    return;
-  }
+app.use(cors());
 
-  if (req.url === '/primus/primus.js') {
-    res.end(primus.library());
+app.post('/api/login', urlencodeParser, (req: express.Request, res: express.Response) => {
+    res.send(`<script>window.parent.postMessage('${req.body.jwt}', '*');</script>`);
+});
 
-  }
-  else if (req.url === '/api/course') {
+app.get('/primus/primus.js', (req: express.Request, res: express.Response) => {
+  res.send(primus.library());
+});
+
+app.get('/api/course', (req: express.Request, res: express.Response) => {
     db.getCourseList().then((result) => {
-       res.setHeader('Content-Type', 'application/json');
-       res.end(JSON.stringify(result));
+       res.json(result);
     });
-  }
-  else if (req.url.indexOf('/api/course/') > -1) {
-    db.getCourseDetail(decodeURI(req.url.slice('/api/course/'.length))).then((result) => {
+});
+
+app.get('/api/course/:name', (req: express.Request, res: express.Response) => {
+    db.getCourseDetail(req.params.name).then((result) => {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(result));
     });
-  }
-  else if (req.url === '/headers') {
-    res.end(JSON.stringify(req.rawHeaders));
-    console.log(req);
-  }
-  else {
-    res.writeHead(404);
-    res.end();
-  }
-}
+});
 
-let server = http.createServer(handler);
+let server = http.createServer(app);
 primus = new Primus(server, { transformer: 'engine.io' });
 
 // add rooms extension to Primus
@@ -54,15 +43,12 @@ primus.plugin('rooms', PrimusRooms);
 
 let rooms: { [key: string]: Room } = {};
 
-primus.on('connection', async function (spark: Primus.ISpark) {
-  // give user his user for admin info
-  let user = await User.fromHeaders(spark.headers);
-  console.log(spark.headers);
-
-  spark.write({ a: 'user', v: user });
+primus.on('connection', (spark: Primus.ISpark) => {
   // give room list
   // NEXT: more room info to display
   spark.write({ a: 'rooms', v: Object.keys(rooms) });
+
+  let user: User;
 
   spark.on('leaveroom', (roomName) => {
     if (!user.isAdmin && rooms.hasOwnProperty(roomName)) {
@@ -74,7 +60,24 @@ primus.on('connection', async function (spark: Primus.ISpark) {
   spark.on('data', (data) => {
     data = data || {};
     let action: string = String(data.a);
+
+    if (action === 'token') {
+      User.fromToken(data.v).then((u) => {
+        user = u;
+        spark.write({ a: 'user', v: u });
+      }, (e) => {
+        spark.write({ a: 'error', v: {type: 'token', error: e }});
+      });
+      return;
+    }
+
+    if (!user) {
+      spark.write({ a: 'error', v: {type: 'not_logged_in'}});
+      return;
+    }
+
     if (!data.r) {
+      spark.write({ a: 'error', v: {type: 'not_room'}});
       return;
     }
     let roomName = data.r.replace(/ /g, '-');
@@ -116,7 +119,8 @@ primus.on('connection', async function (spark: Primus.ISpark) {
           spark.write({ a: 'state', v: 'results', results: room.results() });
         }
       });
-    };
+      return;
+    }
 
     if (action === 'leave') {
       if (!room) {
@@ -127,6 +131,7 @@ primus.on('connection', async function (spark: Primus.ISpark) {
           spark.leave(roomAdminName);
         }
       });
+      return;
     }
 
     // USER commands
@@ -144,15 +149,18 @@ primus.on('connection', async function (spark: Primus.ISpark) {
         primus.room(roomName).write({ a: 'votesCount', q: data.q, v: question.votesCount() });
         primus.room(roomAdminName).write({ a: 'vote', u: user.email, v: data.v, q: room.questions.indexOf(question) });
       }
+      return;
     }
 
     if (action === 'user_avatar') {
       room.voters[user.email].avatar = data.v;
       primus.room(roomName).write({ a: 'user_avatar', v: data.v, u: user.email });
+      return;
     }
 
     // ADMIN commands
     if (!user.isAdmin) {
+      spark.write({ a: 'error', v: {type: 'not_admin'}});
       return;
     }
 
@@ -165,41 +173,11 @@ primus.on('connection', async function (spark: Primus.ISpark) {
       room.course = data.c;
       rooms[roomName] = room;
       room.save();
-      /* DEBUG
-            let names = [
-              'Karyl Batterton',
-              'Adaline Combes',
-              'Shanel Weingarten',
-              'Wade Trainer',
-              'Pasquale Prochnow',
-              'Latanya Spevak',
-              'Elise Domingues',
-              'Noreen Perras',
-              'Randi Buell',
-              'Wiley Seger',
-              'Latricia Halderman',
-              'Khadijah Garriott',
-              'Yolando Kierstead',
-              'Griselda Gilmer',
-              'Lashonda Oropeza',
-              'Marlen Budzinski',
-              'Elliott Ismail',
-              'Palma Peaden',
-              'Velia Mix',
-              'Debra Beaton'
-            ];
 
-            names.forEach((name) => {
-              let u = new User();
-              u.email = name;
-              u.firstname = name.split(' ')[0];
-              u.lastname = name.split(' ')[1];
-              room.joinVoters(u);
-            });
-      */
       // NEXT optimize
       // send new room list to everybody
       primus.write({ a: 'rooms', v: Object.keys(rooms) });
+      return;
     }
 
     if (!room) {
@@ -216,6 +194,7 @@ primus.on('connection', async function (spark: Primus.ISpark) {
 
       primus.room(roomAdminName).write({ a: 'questions', v: room.questions });
       primus.room(roomName).write({ a: 'questionsCount', v: room.questions.length });
+      return;
     }
 
     if (action === 'set_state') {
@@ -253,6 +232,7 @@ primus.on('connection', async function (spark: Primus.ISpark) {
         room.save();
         primus.room(roomName).write({ a: 'state', v: 'results', results: room.results() });
       }
+      return;
     }
 
     if (action === 'close_room') {
@@ -265,6 +245,7 @@ primus.on('connection', async function (spark: Primus.ISpark) {
       // NEXT optimize
       // send new room list to everybody
       primus.write({ a: 'rooms', v: Object.keys(rooms) });
+      return;
     }
   });
 });

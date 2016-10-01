@@ -1,4 +1,5 @@
 import * as db from './db';
+import * as jwt from 'jsonwebtoken';
 
 let admins = ['boris.fritscher@he-arc.ch'];
 
@@ -10,32 +11,38 @@ export class User {
     isAdmin: Boolean;
     avatar: string;
 
-    static fromHeaders(headers: any): Promise<User> {
+    static fromToken(token: string): Promise<User> {
         return new Promise((resolve, reject) => {
-            let user = new User();
-            user.email = headers.mail || 'unknown';
-            user.firstname = headers.givenname || 'unknown';
-            user.lastname = headers.surname || 'unknown';
-            user.isAdmin = admins.indexOf(user.email) > -1;
-
-            // DEBUG user.isAdmin = headers['user-agent'].indexOf('Chrome') > 0;
-
-            (<any>db.User.findOrCreate({
-                where: {
-                    email: user.email
-                },
-                defaults: {
-                    email: user.email,
-                    firstname: user.firstname,
-                    lastname: user.lastname
+            jwt.verify(token, process.env.JWT_SHARED_SECRET, (err, decoded) => {
+                if (err) {
+                    return reject(err);
                 }
-            })).spread((dbUser: any) => {
-                user.id = dbUser.get('id');
-                console.log('user ' + user.id);
-                // update?
-                resolve(user);
-            }, (err) => {
-                reject(err);
+                let user = new User();
+                user.email = decoded.email || 'unknown';
+                user.firstname = decoded.firstname || 'unknown';
+                user.lastname = decoded.lastname || 'unknown';
+                user.isAdmin = admins.indexOf(user.email) > -1;
+
+                (<any>db.User.findOrCreate({
+                    where: {
+                        email: user.email
+                    },
+                    defaults: {
+                        email: user.email,
+                        firstname: user.firstname,
+                        lastname: user.lastname
+                    }
+                })).spread((dbUser: any) => {
+                    user.id = dbUser.id;
+                    if (user.firstname !== dbUser.firstname || user.lastname !== dbUser.lastname) {
+                        dbUser.firstname = user.firstname;
+                        dbUser.lastname = user.lastname;
+                        dbUser.save();
+                    }
+                    resolve(user);
+                }, (err) => {
+                    reject(err);
+                });
             });
         });
     }
