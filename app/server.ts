@@ -14,8 +14,8 @@ let urlencodeParser = bodyParser.urlencoded({ extended: false });
 
 app.use(cors());
 
-app.post('/api/login', urlencodeParser, (req: express.Request, res: express.Response) => {
-    res.send(`<script>window.parent.postMessage('${req.body.jwt}', '*');</script>`);
+app.post('/api/login', urlencodeParser, (req: express. Request, res: express.Response) => {
+    res.send(`<script>localStorage.setItem('jwt', '${req.body.jwt}');window.location='/poll/';</script>`);
 });
 
 app.get('/primus/primus.js', (req: express.Request, res: express.Response) => {
