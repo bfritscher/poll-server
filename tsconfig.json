@@ -1,11 +1,8 @@
 {
-"compilerOptions": {
+  "compilerOptions": {
     "module": "commonjs",
-  "sourceMap": true,
-  "target": "ES6",
-  "types": [ "node" ],
-  "paths": {
-      "primus": ["node_modules/primus/primus.d.ts"]
-  }
+    "sourceMap": true,
+    "target": "ES6",
+    "types": ["node"]
   }
 }

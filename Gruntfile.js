@@ -54,7 +54,8 @@ module.exports = function (grunt) {
                     module: 'commonjs', // To compile TypeScript using external modules like NodeJS
                     fast: 'never', // You'll need to recompile all the files each time for NodeJS
                     compiler: './node_modules/typescript/bin/tsc',
-                    types: [ 'node', 'primus' ]
+                    skipLibCheck: true,
+                    types: [ 'node' ]
                 }
             }
         }

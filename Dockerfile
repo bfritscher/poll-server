@@ -1,4 +1,4 @@
-FROM node:6
+FROM node:14
 RUN mkdir -p /app
 COPY package.json /app/package.json
 COPY Gruntfile.js /app/Gruntfile.js
