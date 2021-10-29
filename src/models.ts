@@ -1,5 +1,5 @@
 import * as db from './db.js';
-import * as jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 
 let admins = ['boris.fritscher@he-arc.ch'];
 
@@ -23,7 +23,7 @@ export class User {
         user.lastname = decoded?.lastname || 'unknown';
         user.isAdmin = admins.indexOf(user.email) > -1;
 
-        (<any>db.User.findOrCreate({
+        db.User.findOrCreate({
           where: {
             email: user.email,
           },
@@ -32,8 +32,8 @@ export class User {
             firstname: user.firstname,
             lastname: user.lastname,
           },
-        })).spread(
-          (dbUser: any) => {
+        }).then(
+          ([dbUser, _created]: [any, boolean]) => {
             user.id = dbUser.id;
             if (
               user.firstname !== dbUser.firstname ||
