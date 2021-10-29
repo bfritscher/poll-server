@@ -27,7 +27,7 @@ declare module 'primus' {
         transforms(event: string, parser: (packet: any, next: any) => void): void; // might be better tied to a TSD for https://github.com/primus/emits
         rooms():any;
         room(name: string): IRoom;
-        empty(name: string);
+        empty(name: string): void;
       }
 
       interface IRoom {
@@ -84,8 +84,8 @@ declare module 'primus' {
         emits(event: string, parser: (next: any, parser: any) => void): void; // might be better tied to a TSD for https://github.com/primus/emits
         on(event: string, cb: (data: any) => void): void;
 
-        join(name: string, cb?: () => void);
-        leave(name: string, cb?: () => void);
+        join(name: string, cb?: () => void): void;
+        leave(name: string, cb?: () => void): void;
       }
 
       interface IPrimusStatic {

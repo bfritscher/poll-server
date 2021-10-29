@@ -1,8 +1,19 @@
 {
+  "include": ["src/**/*"],
   "compilerOptions": {
-    "module": "commonjs",
+    "allowSyntheticDefaultImports": true,
+    "lib": ["ES2020"],
+    "module": "ES2020",
+    "moduleResolution": "node",
+    "target": "ES2020",
     "sourceMap": true,
-    "target": "ES6",
-    "types": ["node"]
+    "inlineSources": true,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true
   }
 }
